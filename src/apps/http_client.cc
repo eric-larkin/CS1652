@@ -144,21 +144,42 @@ int main(int argc, char * argv[]) {
 
     /* second read loop -- print out the rest of the response: real web content */
     getResponse = getResponse.substr(headerEndPosition, (getResponse.length() - headerEndPosition)); /* reset */
-    bytesReturned = minet_read(socket, buffer, BUFSIZE - 1);
+//    bytesReturned = minet_read(socket, buffer, BUFSIZE - 1);
+
     /*if(bytesReturned <= 0) {
 	fprintf(stderr, "Error in minet_read 2");
 	free(req);
 	minet_deinit();
 	exit(-1);
     }*/
-    while(bytesReturned > 0) {
-	getResponse += std::string(buffer);
+
+    /* assuming header information was returned, this loop should be entered, as bytesReturned will still be greater than zero from original read */
+    while(true) {
+	memset(buffer, 0, BUFSIZE-1);
+	if (minet_select(socket + 1, &set, NULL, NULL, NULL) < 0) {
+		fprintf(stderr, "Error in minet_select LOOP");
+	        free(req);
+	        minet_deinit();
+	        exit(-1);
+	}
+
         bytesReturned = minet_read(socket, buffer, BUFSIZE - 1);
+	if(bytesReturned > 0) {
+	    	getResponse += std::string(buffer);
+	}
+	else {
+		break;
+	}
     }
-    getResponse += std::string(buffer);
+//    getResponse += std::string(buffer);
     fprintf(stdout, getResponse.c_str());
 
     /*close socket and deinitialize */
+    if(minet_close(socket) < 0) {
+	fprintf(stderr, "Error in minet_close");
+    }
+
+    free(req);
 
     if (ok) {
 	return 0;
