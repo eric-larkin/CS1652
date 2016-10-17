@@ -57,12 +57,12 @@ int main(int argc, char * argv[]) {
 	saddr.sin_port = htons(server_port);
 
     /* bind listening socket */
-	if(minet_bind(server_socket, (struct sockaddr_in*)&saddr) < 0) {
+	if(minet_bind(sock, (struct sockaddr_in*)&saddr) < 0) {
         fprintf(stderr, "SOCKET CANNOT BIND TO ADDRESS.");
         exit(-1);
 	}
     /* start listening */
-	if(minet_listen(server_socket, 50) < 0) {
+	if(minet_listen(sock, 50) < 0) {
         fprintf(stderr, "FAILED TO LISTEN ON SOCKET\n");
         exit(-1);
 	}
@@ -70,10 +70,10 @@ int main(int argc, char * argv[]) {
 
     while (1) {
 	/* handle connections */
-	rc = handle_connection(minet_accept(server_socket, (struct sockaddr_in*)&saddr));
+	rc = handle_connection(minet_accept(sock, (struct sockaddr_in*)&saddr));
     }
 	
-	minet_close(server_socket);
+	minet_close(sock);
 	minet_deinit();
 }
 
@@ -96,6 +96,8 @@ int handle_connection(int sock) {
 	
 	char *ok_return;
 	int headLen;
+
+	char buf[BUFSIZE];
 	
 	if(sock < 1){
 		return -1;
@@ -104,8 +106,8 @@ int handle_connection(int sock) {
     /* first read loop -- get request and headers*/
 	char recvbuf[BUFSIZE];
 	char totalrecv[BUFSIZE*1024];
-
-	int received = read(serv, recvbuf, BUFSIZE);
+	int filesize;
+	int received = minet_read(sock, recvbuf, BUFSIZE);
 	int recvpos = 0;
 	do {
 		if(received > 0) {
@@ -115,7 +117,7 @@ int handle_connection(int sock) {
 			if(received < BUFSIZE)
 				break;
 		}
-		received = read(serv, recvbuf, BUFSIZE);
+		received = minet_read(sock, recvbuf, BUFSIZE);
 	} while(received > 0 && (recvpos < (BUFSIZE*1024)));
 
 	// display what was read to the screen
@@ -123,7 +125,7 @@ int handle_connection(int sock) {
     
     /* parse request to get file name */
     /* Assumption: this is a GET request and filename contains no spaces*/
-	if(strcmp(strtok(buf," "), "GET") != 0){
+	if(strcmp(strtok(recvbuf," "), "GET") != 0){
 			fprintf(stderr, "EXPECTED GET REQUEST. PLEASE RESEND\nIN FORm OF GET");
 			exit(1);
 	}
@@ -133,7 +135,7 @@ int handle_connection(int sock) {
     /* try opening the file */
 	fp = fopen(useFile, "r");
 	
-	if(fp != null){
+	if(fp != NULL){
 		ok = true;
 		fseek(fp, 0, SEEK_END);
         filesize = ftell(fp);
@@ -162,7 +164,7 @@ int handle_connection(int sock) {
 	
     } else {
 	// send error response
-	if(minet_write(sock, notok_response, sizeof(notok_response)) != sizeof(notok_response)) {
+	if(minet_write(sock, (char *)notok_response, sizeof(notok_response)) != sizeof(notok_response)) {
             fprintf(stderr, "WROTE UNEXPECTED NUMBER OF BYTES TO SOCKET\n");
             exit(1);
 		}
