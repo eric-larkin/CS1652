@@ -75,9 +75,11 @@ int main(int argc, char * argv[]) {
        if(rc < 0){
         fprintf(stderr, "FILE NOT FOUND (404) EXCEPTION\n");
        }
+       /* added - eric: close the connection socket (step 4.f) */
+       minet_close(sock);
     }
-
-	minet_close(sock);
+	/* changed - eric: close the listen socket here instead of connection socket */
+	minet_close(listen);
 	minet_deinit();
 }
 
