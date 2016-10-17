@@ -13,6 +13,7 @@ int main(int argc, char * argv[]) {
     int server_port = -1;
     int rc          =  0;
     int sock        = -1;
+    int listen      = -1;
 	minet_socket_types mode;
 
     /* parse command line args */
@@ -44,7 +45,7 @@ int main(int argc, char * argv[]) {
 		fprintf(stderr, "INITIALIZATION OF MINET FAIL");
 		exit(-1);
 	}
-	else if((sock = minet_socket(SOCK_STREAM)) < 0){
+	else if((listen = minet_socket(SOCK_STREAM)) < 0){
 		fprintf(stderr, "CANNOT CREATE SOCKET");
 		exit(-1);
 	}
@@ -57,18 +58,18 @@ int main(int argc, char * argv[]) {
 	saddr.sin_port = htons(server_port);
 
     /* bind listening socket */
-	if(minet_bind(sock, (struct sockaddr_in*)&saddr) < 0) {
+	if(minet_bind(listen, (struct sockaddr_in*)&saddr) < 0) {
         fprintf(stderr, "SOCKET CANNOT BIND TO ADDRESS.");
         exit(-1);
 	}
     /* start listening */
-	if(minet_listen(sock, 50) < 0) {
+	if(minet_listen(listen, 50) < 0) {
         fprintf(stderr, "FAILED TO LISTEN ON SOCKET\n");
         exit(-1);
 	}
     /* connection handling loop: wait to accept connection */
 
-    while (1) {
+    while ((sock=minet_accept(listen,NULL)) >=0) {
 	/* handle connections */
        rc = handle_connection(sock);
        if(rc < 0){
@@ -83,11 +84,11 @@ int main(int argc, char * argv[]) {
 int handle_connection(int sock) {
     bool ok = false;
 
-    char * ok_response_f = "HTTP/1.0 200 OK\r\n"	\
+    const char * ok_response_f = "HTTP/1.0 200 OK\r\n"	\
 	"Content-type: text/plain\r\n"			\
 	"Content-length: %d \r\n\r\n";
 
-    char * notok_response = "HTTP/1.0 404 FILE NOT FOUND\r\n"	\
+    const char * notok_response = "HTTP/1.0 404 FILE NOT FOUND\r\n"	\
 	"Content-type: text/html\r\n\r\n"			\
 	"<html><body bgColor=black text=white>\n"		\
 	"<h2>404 FILE NOT FOUND</h2>\n"
@@ -98,10 +99,9 @@ int handle_connection(int sock) {
 	long fileSize;
 	char *ok_return;
 	int headLen;
-	//int i = 0;
 	char buf[BUFSIZE];
 
-	minet_accept(sock, 0);
+	//minet_accept(sock, 0);
 
     memset(useFile, 0, sizeof(char) * 1000);
 
@@ -114,7 +114,9 @@ int handle_connection(int sock) {
 	char recvbuf[BUFSIZE];
 	char totalrecv[BUFSIZE*1024];
 
-	int received = read(sock, recvbuf, BUFSIZE-1);
+	int received = minet_read(sock, recvbuf, BUFSIZE-1);
+
+
 	int recvpos = 0;
 	do {
 		if(received > 0) {
@@ -125,10 +127,10 @@ int handle_connection(int sock) {
 				break;
 		}
 		received = minet_read(sock, recvbuf, BUFSIZE);
-	} while(received > 0 && (recvpos < (BUFSIZE*1024)));
+    } while(received > 0 && (recvpos < (BUFSIZE*1024)));
 
 	// display what was read to the screen
-	//printf("%s\n", totalrecv);
+
 
     /* parse request to get file name */
     /* Assumption: this is a GET request and filename contains no spaces*/
@@ -165,7 +167,7 @@ int handle_connection(int sock) {
 	}
 
 	/* send file */
-	char buf[recvpos];
+	//char buf[recvpos];
 	while(!feof(fp)) {
 			fread(buf, 1, 1, fp);
 			minet_write(sock, buf, 1);
@@ -189,3 +191,4 @@ int handle_connection(int sock) {
 	return -1;
     }
 }
+
