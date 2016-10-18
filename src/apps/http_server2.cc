@@ -18,6 +18,7 @@ int main(int argc, char * argv[]) {
     /* eric */
     struct sockaddr_in server;
     fd_set readList;
+    fd_set open;
     int socket = -1;
     int maxFD = -1;
     int accept = -1;
@@ -76,33 +77,28 @@ int main(int argc, char * argv[]) {
     maxFD = socket + 1;
 
     FD_ZERO(&readList);
-    FD_SET(socket, &readList);
-
-    fd_set con;
-    FD_ZERO(&con);
-
+    FD_ZERO(&open);
+    FD_SET(socket, &open);
+   
     while (1) {
 	
-	/* create read list */ /* eric note - don't need to create a separate list, just use one */
-	con = readList;
+	/* create read list */
+	readList = open;
 
-	/* do a select */
-//	if(minet_select(maxFD, &readList, 0, 0, 0) > 0) {	
-	if(minet_select(maxFD, &con, NULL, NULL, NULL) > 0) {
+	/* do a select */	
+	if(minet_select(maxFD, &readList, NULL, NULL, NULL) > 0) {
 		/* process sockets that are ready */
 		for(int i = 0; i < maxFD; i++) {
 			/* need to check if the fd is in our list (i.e., not stderr, stdout, stdin) */
-//			if(FD_ISSET(i, &readList)) {
-			if(FD_ISSET(i, &con)) {
-				fprintf(stdout, "i = %d\n", i);
+			if(FD_ISSET(i, &readList)) {
+//			if(FD_ISSET(i, &open)) {
 				if(i == socket) {
-					fprintf(stdout, "i = socket\n");
+//					fprintf(stdout, "i = socket\n");
 					/* for the accept socket, add accepted connection to connections */
 					accept = minet_accept(socket, 0);
 					if(accept > 0) {
-						fprintf(stdout, "accept > 0: %d\n", accept);
 						/* set read list */
-						FD_SET(accept, &readList);
+						FD_SET(accept, &open);
 	
 						/* its possible the max file descriptor for the select needs to be updated */
 						if(accept >= maxFD) {
@@ -116,15 +112,14 @@ int main(int argc, char * argv[]) {
 					if(rc < 0) {
 						fprintf(stderr, "error handling connection\n");
 					}
-					fprintf(stdout, "cleared: %d from readlist\n", i);	
 					/* updated read list */
-					FD_CLR(i, &readList);
+					FD_CLR(i, &open);
 	
 					close(i);
 				}
 			}
 			else {
-				fprintf(stderr, "not in read list: %d", i);
+				//fprintf(stderr, "not in read list: %d", i);
 			}
 		}
 	}
