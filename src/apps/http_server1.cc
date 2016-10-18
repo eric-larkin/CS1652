@@ -3,7 +3,7 @@
 #include <ctype.h>
 #include <fcntl.h>
 #include <sys/stat.h>
-
+#include <string> /* added by eric */
 #define BUFSIZE 1024
 #define FILENAMESIZE 100
 
@@ -101,50 +101,43 @@ int handle_connection(int sock) {
 	long fileSize;
 	char *ok_return;
 	int headLen;
-	char buf[BUFSIZE];
+	char *tokens[5];
+        int i = 0;
+        char buf[BUFSIZE];
 
-	//minet_accept(sock, 0);
-
-    memset(useFile, 0, sizeof(char) * 1000);
-
-	if(sock < 1){
-        fprintf(stderr,"SOCK ERROR");
-		return -1;
-	}
+        if(sock < 1) {
+                fprintf(stdout, "sock error");
+                return -1;
+        }
 
     /* first read loop -- get request and headers*/
-	char recvbuf[BUFSIZE];
-	char totalrecv[BUFSIZE*1024];
-
-	int received = minet_read(sock, recvbuf, BUFSIZE-1);
-
-
-	int recvpos = 0;
-	do {
-		if(received > 0) {
-			memcpy(totalrecv+recvpos, recvbuf, received);
-			recvpos += received;
-			// last block already received
-			if(received < BUFSIZE)
-				break;
-		}
-		received = minet_read(sock, recvbuf, BUFSIZE);
-    } while(received > 0 && (recvpos < (BUFSIZE*1024)));
-
-	// display what was read to the screen
-
+        std::string response ("");
+        int bytesRet = -1;
+        while(true) {
+                memset(buf, 0, BUFSIZE - 1);
+                
+                bytesRet = minet_read(sock, buf, BUFSIZE - 1);
+                if(bytesRet == BUFSIZE - 1) {
+                        response += std::string(buf);
+                }
+                else {
+                        response += std::string(buf);
+                        break;
+                }
+        }
 
     /* parse request to get file name */
     /* Assumption: this is a GET request and filename contains no spaces*/
-	if(strcmp(strtok(totalrecv," "), "GET") != 0){
-			fprintf(stderr, "EXPECTED GET REQUEST. PLEASE RESEND\nIN FORm OF GET");
-			exit(1);
-	}
-	useFile = strtok(NULL," ");
-	//printf("%s\n", useFile);
+        char *responseChar = &response[0u];
+//      fprintf(stdout, "responsechar: %s\n", responseChar);
 
+        tokens[0] = strtok(responseChar, " ");
+        while(tokens[i] != NULL) {
+                tokens[++i] = strtok(NULL, " ");
+        }
+        
     /* try opening the file */
-	fp = fopen(useFile, "rb");
+        fp = fopen(tokens[1], "rb");
 
 	if(fp != NULL){
 		ok = true;

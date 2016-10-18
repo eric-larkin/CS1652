@@ -78,23 +78,29 @@ int main(int argc, char * argv[]) {
     FD_ZERO(&readList);
     FD_SET(socket, &readList);
 
+    fd_set con;
+    FD_ZERO(&con);
+
     while (1) {
 	
 	/* create read list */ /* eric note - don't need to create a separate list, just use one */
+	con = readList;
 
 	/* do a select */
-	if(minet_select(maxFD, &readList, 0, 0, 0) > 0) {	
+//	if(minet_select(maxFD, &readList, 0, 0, 0) > 0) {	
+	if(minet_select(maxFD, &con, NULL, NULL, NULL) > 0) {
 		/* process sockets that are ready */
 		for(int i = 0; i < maxFD; i++) {
 			/* need to check if the fd is in our list (i.e., not stderr, stdout, stdin) */
-			if(FD_ISSET(i, &readList)) {
-//				fprintf(stdout, "i = %d", i);
+//			if(FD_ISSET(i, &readList)) {
+			if(FD_ISSET(i, &con)) {
+				fprintf(stdout, "i = %d\n", i);
 				if(i == socket) {
-//					fprintf(stdout, "i = socket\n");
+					fprintf(stdout, "i = socket\n");
 					/* for the accept socket, add accepted connection to connections */
 					accept = minet_accept(socket, 0);
 					if(accept > 0) {
-//						fprintf(stdout, "accept > 0: %d\n", accept);
+						fprintf(stdout, "accept > 0: %d\n", accept);
 						/* set read list */
 						FD_SET(accept, &readList);
 	
@@ -108,18 +114,21 @@ int main(int argc, char * argv[]) {
 //					fprintf(stdout, "going to handle\n");
 					rc = handle_connection(i);
 					if(rc < 0) {
-						fprintf(stderr, "error handling connection");
+						fprintf(stderr, "error handling connection\n");
 					}
-	
+					fprintf(stdout, "cleared: %d from readlist\n", i);	
 					/* updated read list */
 					FD_CLR(i, &readList);
 	
 					close(i);
 				}
 			}
+			else {
+				fprintf(stderr, "not in read list: %d", i);
+			}
 		}
 	}
-    }
+   } 
 }
 
 int handle_connection(int sock) {
@@ -134,7 +143,6 @@ int handle_connection(int sock) {
 	"<html><body bgColor=black text=white>\n"		\
 	"<h2>404 FILE NOT FOUND</h2>\n"				\
 	"</body></html>\n";
-	char *useFile = (char *)malloc(sizeof(char) * 1000);
 	FILE *fp;
 	long fileSize;
 	char *ok_return;
@@ -143,38 +151,36 @@ int handle_connection(int sock) {
 	int i = 0;
 	char buf[BUFSIZE];
 	
-	memset(useFile, 0, sizeof(char) * 1000);
-
 	if(sock < 1) {
 		fprintf(stdout, "sock error");
 		return -1;
 	}
     
     /* first read loop -- get request and headers*/
-	char recvbuf[BUFSIZE];
-	char totalrecv[BUFSIZE*1024];
-	int received = minet_read(sock, recvbuf, BUFSIZE-1);
-
-	int recvpos = 0;
-	do {
-		if(received > 0) {
-			memcpy(totalrecv+recvpos, recvbuf, received);
-			recvpos += received;
-			// last block already received
-			if(received < BUFSIZE)
-				break;
+	std::string response ("");
+	int bytesRet = -1;
+	while(true) {
+		memset(buf, 0, BUFSIZE - 1);
+		
+		bytesRet = minet_read(sock, buf, BUFSIZE - 1);
+		if(bytesRet == BUFSIZE - 1) {
+			response += std::string(buf);
 		}
-		received = minet_read(sock, recvbuf, BUFSIZE);
-	} while(received > 0 && (recvpos < (BUFSIZE*1024)));
-    
+		else {
+			response += std::string(buf);
+			break;
+		}
+	}
+
     /* parse request to get file name */
     /* Assumption: this is a GET request and filename contains no spaces*/
-	tokens[0] = strtok(recvbuf, " ");
+	char *responseChar = &response[0u];
+//	fprintf(stdout, "responsechar: %s\n", responseChar);
+
+	tokens[0] = strtok(responseChar, " ");
 	while(tokens[i] != NULL) {
 		tokens[++i] = strtok(NULL, " ");
 	}
-
-	strcpy(useFile, tokens[1]);
 	
     /* try opening the file */
 	fp = fopen(tokens[1], "rb");
